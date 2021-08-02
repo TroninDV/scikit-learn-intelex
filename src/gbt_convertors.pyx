@@ -306,7 +306,9 @@ def get_gbt_model_from_catboost(booster: Any) -> Any:
 
     for tree_num in range(n_iterations):
         if is_symmetric_tree:
+            
             if model_data['oblivious_trees'][tree_num]['splits'] is not None:
+                # Tree has more than 1 node
                 cur_tree_depth = len(
                     model_data['oblivious_trees'][tree_num]['splits'])
             else:
@@ -402,13 +404,14 @@ def get_gbt_model_from_catboost(booster: Any) -> Any:
                     mb.add_leaf(
                         tree_id=tree_id, response=current_tree_leaf_val[0])
                 else:
+                    # One split used for the whole level 
                     cur_level_split = splits[tree_info['splits']
                                              [cur_tree_depth - 1]['split_index']]
                     root_id = mb.add_split(
                         tree_id=tree_id, feature_index=cur_level_split['feature_index'], feature_value=cur_level_split['value'])
                     prev_level_nodes = [root_id]
 
-                    # Splits in json are reversed (root split is the last)
+                    # Iterate over levels, splits in json are reversed (root split is the last)
                     for cur_level in range(cur_tree_depth - 2, -1, -1):
                         cur_level_nodes = []
                         for cur_parent in prev_level_nodes:
@@ -443,7 +446,7 @@ def get_gbt_model_from_catboost(booster: Any) -> Any:
             for i in range(n_iterations):
                 root_node = trees_explicit[i][0]
                 tree_id = tree_id[i * n_tree_each_iter + class_label]
-
+                # Traverse tree via BFS and build tree with modelbuilder
                 if root_node.value is None:
                     root_id = mb.add_split(
                         tree_id=tree_id, feature_index=root_node.split['feature_index'], feature_value=root_node.split['value'])
@@ -451,6 +454,7 @@ def get_gbt_model_from_catboost(booster: Any) -> Any:
                     while nodes_queue:
                         cur_node, cur_node_id = nodes_queue.pop(0)
                         left_node = cur_node.left
+                        # Check if node is a leaf
                         if left_node.value is None:
                             left_node_id = mb.add_split(tree_id=tree_id, parent_id=cur_node_id, position=0,
                                                         feature_index=left_node.split['feature_index'], feature_value=left_node.split['value'])
@@ -459,6 +463,7 @@ def get_gbt_model_from_catboost(booster: Any) -> Any:
                             mb.add_leaf(
                                 tree_id=tree_id, response=left_node.value[class_label], parent_id=cur_node_id, position=0)
                         right_node = cur_node.right
+                        # Check if node is a leaf
                         if right_node.value is None:
                             right_node_id = mb.add_split(tree_id=tree_id, parent_id=cur_node_id, position=1,
                                                          feature_index=right_node.split['feature_index'], feature_value=right_node.split['value'])
@@ -469,6 +474,7 @@ def get_gbt_model_from_catboost(booster: Any) -> Any:
                                 parent_id=cur_node_id, position=1)
 
                 else:
+                    # Tree has only one node
                     mb.add_leaf(tree_id=tree_id,
                                 response=root_node.value[class_label])
 
